@@ -2,7 +2,6 @@ import html
 import pandas as pd
 
 OVERVIEW_MAX_CHARS = 120
-MAX_SEARCH_SUGGESTIONS = 8
 
 def format_similarity_score(score: float) -> str:
     """Format hybrid score as percentage (clamped 0–99 for display)."""

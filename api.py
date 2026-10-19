@@ -1,14 +1,14 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from ml.recommendation_model import MovieRecommender
 from ml.recommend_engine import enrich_movies_with_metadata, get_movie_details, fetch_poster
+from ml.search_engine import search_movies, find_exact_title
 from utils.recommender_util import format_similarity_score
+from utils.search_util import get_sorted_titles
 
 # Import or initialize your existing recommender,
 # movies DataFrame, and helper functions here.
-
-
 
 app = FastAPI(title="CineMatch API")
 
@@ -27,11 +27,29 @@ app.add_middleware(
 class RecommendationRequest(BaseModel):
     movie: str
 
+class MovieSearchResponse(BaseModel):
+    query: str
+    suggestions: list[str]
+    exact_title: str | None
+
+try:
+    # Ensure the model files exist
+    RECOMMENDER = MovieRecommender.load()
+    MOVIES = RECOMMENDER.movies
+    MOVIES = enrich_movies_with_metadata(MOVIES)
+
+    ALL_TITLES = get_sorted_titles(tuple(MOVIES['title'].tolist()))
+    VALID_TITLES = set(ALL_TITLES)
+except Exception as e:
+    print(f"Error loading recommender: {e}")
+    RECOMMENDER = None
+    MOVIES = None
+    ALL_TITLES = []
+    VALID_TITLES = set()
 
 @app.get("/")
 def root():
     return {"message": "CineMatch API is running"}
-
 
 @app.post("/api/recommend")
 def recommend_movies(request: RecommendationRequest):
@@ -43,38 +61,42 @@ def recommend_movies(request: RecommendationRequest):
             detail="Movie title cannot be empty",
         )
 
-    try:
-        # Ensure the model files exist
-        recommender = MovieRecommender.load()
-        movies = recommender.movies
-        movies = enrich_movies_with_metadata(movies)
+    recommendations = RECOMMENDER.recommend(movie, top_n=8)
+    recommended_movies = []
+    recommended_movies_posters = []
 
-        recommendations = recommender.recommend(movie, top_n=8)
-        recommended_movies = []
-        recommended_movies_posters = []
-
-        for rec in recommendations:
-            movie_row = movies[movies["title"] == rec["title"]].iloc[0]
-            details = get_movie_details(movie_row)
-            details["similarity"] = format_similarity_score(rec["similarity_score"])
-            recommended_movies.append(details)
-            movie_id = rec.get("movie_id") or details.get("movie_id")
-            recommended_movies_posters.append(
-                fetch_poster(movie_id, title=details["title"])
-            )
-
-        return {
-            "recommendations": recommended_movies,
-            "posters": recommended_movies_posters,
-        }
-
-    except IndexError:
-        raise HTTPException(
-            status_code=404,
-            detail="Movie details not found",
+    for rec in recommendations:
+        movie_row = MOVIES[MOVIES["title"] == rec["title"]].iloc[0]
+        details = get_movie_details(movie_row)
+        details["similarity"] = format_similarity_score(rec["similarity_score"])
+        recommended_movies.append(details)
+        movie_id = rec.get("movie_id") or details.get("movie_id")
+        recommended_movies_posters.append(
+            fetch_poster(movie_id, title=details["title"])
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Recommendation failed: {str(e)}",
-        )
+
+    return {
+        "recommendations": recommended_movies,
+        "posters": recommended_movies_posters,
+    }
+
+
+@app.get("/api/movies/search", response_model=MovieSearchResponse)
+def movie_search(
+    q: str = Query(default="", max_length=200),
+):
+    query = q.strip()
+
+    suggestions = (
+        search_movies(query, ALL_TITLES)
+        if query
+        else []
+    )
+
+    exact_title = find_exact_title(query, ALL_TITLES)
+
+    return {
+        "query": query,
+        "suggestions": suggestions,
+        "exact_title": exact_title,
+    }
