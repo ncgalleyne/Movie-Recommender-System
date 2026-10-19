@@ -6,7 +6,7 @@ from ml.recommend_engine import enrich_movies_with_metadata, get_movie_details, 
 from ml.search_engine import search_movies, find_exact_title
 from utils.recommender_util import format_similarity_score, sanitize_for_json
 from utils.search_util import get_sorted_titles
-from db.watchlist_db import get_ratings, get_excluded_movie_ids
+from db.watchlist_db import get_ratings, get_excluded_movie_ids, is_in_watchlist
 
 # Import or initialize your existing recommender,
 # movies DataFrame, and helper functions here.
@@ -108,4 +108,46 @@ def get_for_you_recommendations():
 
     recommendations = RECOMMENDER.recommend_for_profile(ratings, excluded_ids, top_n=8)
 
-    return sanitize_for_json(recommendations)
+    results = []
+
+    for rec in recommendations:
+        movie_id = rec.get("movie_id")
+        title = rec.get("title", "")
+
+        # Existing movie metadata
+        year = rec.get("year")
+        rating = rec.get("rating")
+        genres = [
+            genre.strip()
+            for genre in (rec.get("genres_display") or "").split(",")
+            if genre.strip()
+        ]
+
+        # Convert recommender score into a percentage.
+        match = max(0, min(99, round(rec.get("score", 0) * 100)))
+
+        # Resolve poster URL using your existing poster lookup.
+        image = fetch_poster(movie_id, title)
+
+        results.append({
+            "id": movie_id,
+            "title": title,
+            "year": int(year) if year is not None else None,
+            "runtime": None,  # Populate from movie metadata
+            "genres": genres,
+            "match": match,
+            "image": image,
+            "imageAlt": f"Poster for {title}",
+            "reason": rec.get("reason", ""),
+            "rating": rating if rating is not None else 0,
+            "watchlist": is_in_watchlist(movie_id) if movie_id is not None else False,
+            "liked": False,      # Populate from saved user feedback
+            "disliked": False,   # Populate from saved user feedback
+            "hidden": False,     # Populate from saved movie status
+            "hiddenGem": False,  # Derive from your chosen criteria
+            "score": rec.get("score", 0),
+            "releaseDate": int(year) if year is not None else None,
+            "similarOnly": False,
+        })
+
+    return sanitize_for_json(results)
