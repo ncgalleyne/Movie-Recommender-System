@@ -1,9 +1,9 @@
 import streamlit as st
 
-from analytics_db import init_analytics_db
-from feedback_db import init_feedback_db
-from watchlist_db import init_db
-from stats_ui import render_statistics_dashboard
+from db.analytics_db import init_analytics_db
+from db.feedback_db import init_feedback_db
+from db.watchlist_db import init_db
+from ui.stats_ui import render_statistics_dashboard
 
 st.set_page_config(page_title="Admin Analytics", layout="wide", page_icon="📊")
 

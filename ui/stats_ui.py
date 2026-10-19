@@ -5,15 +5,15 @@ import ast
 import pandas as pd
 import streamlit as st
 
-from analytics_db import (
+from db.analytics_db import (
     get_most_searched_movies,
     get_most_recommended_movies,
     get_recommendation_counts,
     get_genre_counts_from_titles,
     get_connection as get_analytics_connection,
 )
-from feedback_db import get_most_liked_recommendations, get_feedback_summary
-from watchlist_db import get_watchlist_stats
+from db.feedback_db import get_most_liked_recommendations, get_feedback_summary
+from db.watchlist_db import get_watchlist_stats
 
 
 @st.cache_data

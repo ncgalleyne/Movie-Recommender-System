@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
-from recommendation_model import train_with_audit
+from ml.recommendation_model import train_with_audit
 
 load_dotenv()
 

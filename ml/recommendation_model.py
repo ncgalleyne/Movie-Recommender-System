@@ -5,16 +5,14 @@ Uses TF-IDF vectors + genre/keyword/cast-aware hybrid re-ranking.
 
 import os
 import pickle
-from typing import Optional
 
 import numpy as np
 import pandas as pd
-import requests
 from dotenv import load_dotenv
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from feature_engineering import build_feature_record
+from utils.feature_engineering import build_feature_record
 
 load_dotenv()
 

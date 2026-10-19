@@ -1,12 +1,11 @@
 import streamlit as st
-import pickle
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 import os
 import ast
 import html
-from watchlist_db import (
+from db.watchlist_db import (
     init_db,
     add_to_watchlist,
     remove_from_watchlist,
@@ -14,14 +13,13 @@ from watchlist_db import (
     is_in_watchlist,
     save_rating,
     get_ratings,
-    get_rating,
     set_movie_status,
     get_excluded_movie_ids,
 )
-from feedback_db import init_feedback_db, save_feedback, FEEDBACK_HELPFUL, FEEDBACK_NOT_HELPFUL
-from analytics_db import init_analytics_db, log_search, log_recommendation_batch
-from stats_ui import render_statistics_dashboard
-from recommendation_model import MovieRecommender, format_similarity_score
+from db.feedback_db import init_feedback_db, save_feedback, FEEDBACK_HELPFUL, FEEDBACK_NOT_HELPFUL
+from db.analytics_db import init_analytics_db, log_search, log_recommendation_batch
+from ui.stats_ui import render_statistics_dashboard
+from ml.recommendation_model import MovieRecommender, format_similarity_score
 
 load_dotenv()
 

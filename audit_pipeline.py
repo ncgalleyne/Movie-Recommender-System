@@ -8,7 +8,7 @@ import pickle
 
 import pandas as pd
 
-from recommendation_model import MovieRecommender, explain_recommendation, format_similarity_score
+from ml.recommendation_model import MovieRecommender, explain_recommendation, format_similarity_score
 
 TEST_TITLES = [
     "The Hangover",
