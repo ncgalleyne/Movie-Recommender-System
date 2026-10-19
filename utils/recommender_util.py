@@ -1,4 +1,6 @@
 import html
+import math
+import numpy as np
 import pandas as pd
 
 OVERVIEW_MAX_CHARS = 120
@@ -40,3 +42,35 @@ def format_overview_html(overview):
             <span class="overview-expanded">{safe_text}</span>
         </details>
     </div>'''
+
+def sanitize_for_json(value):
+    if isinstance(value, dict):
+        return {
+            key: sanitize_for_json(item)
+            for key, item in value.items()
+        }
+
+    if isinstance(value, (list, tuple)):
+        return [
+            sanitize_for_json(item)
+            for item in value
+        ]
+
+    if value is None or value is pd.NA or value is pd.NaT:
+        return None
+
+    if isinstance(value, (float, np.floating)):
+        if not math.isfinite(float(value)):
+            return None
+        return float(value)
+
+    if isinstance(value, np.integer):
+        return int(value)
+
+    if isinstance(value, np.bool_):
+        return bool(value)
+
+    if isinstance(value, np.ndarray):
+        return sanitize_for_json(value.tolist())
+
+    return value

@@ -4,8 +4,9 @@ from pydantic import BaseModel
 from ml.recommendation_model import MovieRecommender
 from ml.recommend_engine import enrich_movies_with_metadata, get_movie_details, fetch_poster
 from ml.search_engine import search_movies, find_exact_title
-from utils.recommender_util import format_similarity_score
+from utils.recommender_util import format_similarity_score, sanitize_for_json
 from utils.search_util import get_sorted_titles
+from db.watchlist_db import get_ratings, get_excluded_movie_ids
 
 # Import or initialize your existing recommender,
 # movies DataFrame, and helper functions here.
@@ -80,7 +81,6 @@ def recommend_movies(request: RecommendationRequest):
         "posters": recommended_movies_posters,
     }
 
-
 @app.get("/api/movies/search", response_model=MovieSearchResponse)
 def movie_search(
     q: str = Query(default="", max_length=200),
@@ -100,3 +100,12 @@ def movie_search(
         "suggestions": suggestions,
         "exact_title": exact_title,
     }
+
+@app.get("/api/for-you")
+def get_for_you_recommendations():
+    ratings = get_ratings()
+    excluded_ids = get_excluded_movie_ids()
+
+    recommendations = RECOMMENDER.recommend_for_profile(ratings, excluded_ids, top_n=20)
+
+    return sanitize_for_json(recommendations)
