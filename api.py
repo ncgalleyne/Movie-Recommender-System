@@ -106,6 +106,6 @@ def get_for_you_recommendations():
     ratings = get_ratings()
     excluded_ids = get_excluded_movie_ids()
 
-    recommendations = RECOMMENDER.recommend_for_profile(ratings, excluded_ids, top_n=20)
+    recommendations = RECOMMENDER.recommend_for_profile(ratings, excluded_ids, top_n=8)
 
     return sanitize_for_json(recommendations)
