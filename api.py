@@ -151,3 +151,7 @@ def get_for_you_recommendations():
         })
 
     return sanitize_for_json(results)
+
+@app.get("/api/movies/suggestions")
+def get_movie_suggestions(q: str = Query(default="", max_length=200)):
+    return search_movies(q, ALL_TITLES)
