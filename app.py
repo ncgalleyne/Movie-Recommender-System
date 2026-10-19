@@ -6,7 +6,18 @@ from dotenv import load_dotenv
 import os
 import ast
 import html
-from watchlist_db import init_db, add_to_watchlist, remove_from_watchlist, get_watchlist, is_in_watchlist
+from watchlist_db import (
+    init_db,
+    add_to_watchlist,
+    remove_from_watchlist,
+    get_watchlist,
+    is_in_watchlist,
+    save_rating,
+    get_ratings,
+    get_rating,
+    set_movie_status,
+    get_excluded_movie_ids,
+)
 from feedback_db import init_feedback_db, save_feedback, FEEDBACK_HELPFUL, FEEDBACK_NOT_HELPFUL
 from analytics_db import init_analytics_db, log_search, log_recommendation_batch
 from stats_ui import render_statistics_dashboard
@@ -274,6 +285,115 @@ def get_movie_details(row):
     return details
 
 
+def render_rating_card(movie):
+    """Display a movie with rating controls for onboarding."""
+    movie_id = movie.get("movie_id")
+    title = movie.get("title")
+    year = movie.get("year", "N/A")
+    genres = movie.get("genres", "N/A")
+    poster = fetch_poster(movie_id, title)
+
+    col_poster, col_info = st.columns([1, 2])
+    with col_poster:
+        st.image(poster, width=200)
+
+    with col_info:
+        st.markdown(f"**{title}** ({year})")
+        st.caption(genres)
+
+        # Rating buttons
+        st.markdown("How would you rate this movie?")
+        rating_cols = st.columns(5)
+        for i, col in enumerate(rating_cols, 1):
+            stars = "⭐" * i
+            with col:
+                if st.button(stars, key=f"rate_{movie_id}_{i}", use_container_width=True):
+                    return (movie_id, title, i)
+
+        st.button("🚫 Haven't seen it", key=f"skip_{movie_id}", use_container_width=True)
+
+    return None
+
+
+def render_taste_onboarding():
+    """Render search, rating controls, and progress for taste onboarding."""
+    st.markdown("### 🎬 Taste Onboarding")
+    st.markdown("Rate at least 15 movies to get personalized recommendations!")
+
+    ratings = get_ratings()
+    progress = len(ratings)
+    st.progress(min(progress / 15, 1.0))
+    st.caption(f"Progress: {progress}/15 ratings")
+
+    if progress >= 15:
+        st.success("Onboarding complete! Check out the 'For You' tab for personalized recommendations.")
+        return
+
+    # Search for movies to rate
+    with st.container(border=True):
+        st.markdown("##### 🔍 Find movies to rate")
+        search_query = st.text_input(
+            "Search for a movie",
+            placeholder="Start typing a movie name...",
+            key="onboarding_search",
+            label_visibility="collapsed",
+        )
+
+        suggestions = search_movies(search_query, all_titles) if search_query.strip() else []
+
+        if search_query.strip():
+            if suggestions:
+                st.markdown('<p class="search-suggestions-label">Suggestions</p>', unsafe_allow_html=True)
+                picked_suggestion = st.selectbox(
+                    "Movie suggestions",
+                    options=suggestions,
+                    label_visibility="collapsed",
+                    key="onboarding_suggestions",
+                )
+                selected_title = find_exact_title(search_query, all_titles) or picked_suggestion
+            else:
+                st.markdown(
+                    '<p class="search-no-results">No matching movies found. Try a different search.</p>',
+                    unsafe_allow_html=True,
+                )
+                selected_title = find_exact_title(search_query, all_titles)
+        else:
+            selected_title = None
+
+        if selected_title and selected_title in valid_titles:
+            movie_row = movies[movies["title"] == selected_title].iloc[0]
+            movie_id = get_movie_id_by_title(selected_title)
+            details = get_movie_details(movie_row)
+            details["movie_id"] = movie_id
+
+            st.divider()
+            rating_result = render_rating_card(details)
+
+            if rating_result:
+                movie_id, title, rating = rating_result
+                if save_rating(movie_id, title, rating):
+                    st.success(f"Rated '{title}' {rating} stars!")
+                    st.rerun()
+
+    # Show recently rated movies
+    if ratings:
+        st.divider()
+        st.markdown("##### 📝 Your Ratings")
+        for rating in ratings[:5]:
+            st.markdown(f"**{rating['title']}** - {'⭐' * rating['rating']}")
+
+
+def save_onboarding_rating(movie_id, title, rating):
+    """Persist a rating through watchlist_db."""
+    return save_rating(movie_id, title, rating)
+
+
+def onboarding_complete():
+    """Return True when the minimum rating threshold is met."""
+    ratings = get_ratings()
+    return len(ratings) >= 15
+
+
 def recommend(movie):
     """Return top-8 recommendations using TF-IDF cosine + metadata hybrid re-ranking."""
     recs = recommender.recommend(movie, top_n=8)
@@ -303,7 +423,7 @@ def get_movie_id_by_title(title):
 
 
 def render_watchlist_sidebar(selected_title=None):
-    """Render watchlist management in the sidebar."""
+    """Render watchlist and profile management in the sidebar."""
     with st.sidebar:
         st.markdown("### 📌 My Watchlist")
         watchlist_items = get_watchlist()
@@ -336,6 +456,41 @@ def render_watchlist_sidebar(selected_title=None):
                     if st.button("✕", key=f"remove_wl_{item['movie_id']}", help="Remove from watchlist"):
                         remove_from_watchlist(item['movie_id'])
                         st.rerun()
+
+        st.divider()
+        st.markdown("### ⭐ My Ratings")
+        ratings = get_ratings()
+        st.caption(f"**{len(ratings)}** ratings")
+
+        if ratings:
+            for rating in ratings[:5]:
+                col_title, col_edit = st.columns([4, 1])
+                with col_title:
+                    st.markdown(f"**{rating['title']}** - {'⭐' * rating['rating']}")
+                with col_edit:
+                    if st.button("✏️", key=f"edit_rating_{rating['movie_id']}", help="Edit rating"):
+                        st.session_state.editing_rating = rating
+                        st.rerun()
+
+            if len(ratings) > 5:
+                st.caption(f"... and {len(ratings) - 5} more")
+
+        # Rating editor (shown when editing)
+        if st.session_state.get("editing_rating"):
+            rating = st.session_state.editing_rating
+            st.markdown(f"**Edit rating for: {rating['title']}**")
+            new_rating = st.slider("New rating", 1, 5, rating['rating'])
+            col_save, col_cancel = st.columns(2)
+            with col_save:
+                if st.button("Save", key="save_rating_edit"):
+                    save_rating(rating['movie_id'], rating['title'], new_rating)
+                    st.session_state.editing_rating = None
+                    st.success("Rating updated!")
+                    st.rerun()
+            with col_cancel:
+                if st.button("Cancel", key="cancel_rating_edit"):
+                    st.session_state.editing_rating = None
+                    st.rerun()
 
 
 def render_recommendations(source_movie, names, posters):
@@ -415,6 +570,118 @@ def render_recommendations(source_movie, names, posters):
                             save_feedback(source_movie, movie['title'], FEEDBACK_NOT_HELPFUL)
                             st.session_state.feedback_given[feedback_key] = "👎 Thanks — we'll improve"
                             st.rerun()
+
+
+def render_personal_recommendations(recommendations):
+    """Display personalized recommendation grid with watchlist, feedback, and dismiss actions."""
+    st.markdown(
+        '<div class="results-header">For You</div>',
+        unsafe_allow_html=True,
+    )
+
+    for row in range(2):
+        cols = st.columns(4)
+        for col_idx in range(4):
+            movie_idx = row * 4 + col_idx
+            if movie_idx >= len(recommendations):
+                continue
+
+            rec = recommendations[movie_idx]
+            safe_title = html.escape(rec["title"])
+
+            with cols[col_idx]:
+                # Format score as percentage
+                score_pct = max(0, min(99, round(rec["score"] * 100)))
+                score_text = f"Match: {score_pct}%"
+
+                st.markdown(
+                    f'''
+                    <div class="movie-card">
+                        <div class="similarity-badge">{score_text}</div>
+                        <img src="{fetch_poster(rec["movie_id"], rec["title"])}" class="movie-poster" alt="{safe_title}">
+                        <div class="movie-title">{safe_title}</div>
+                        <div class="movie-meta"><span class="movie-meta-label">Year:</span> {rec.get("year", "N/A")}</div>
+                        <div class="movie-meta"><span class="movie-meta-label">Rating:</span> {rec.get("rating", "N/A")}/10</div>
+                        <div class="movie-meta"><span class="movie-meta-label">Genres:</span> {rec.get("genres_display", "N/A")}</div>
+                        <div class="movie-meta"><span class="movie-meta-label">Why:</span> {rec.get("reason", "")}</div>
+                    </div>
+                    ''',
+                    unsafe_allow_html=True,
+                )
+
+                movie_id = rec.get("movie_id")
+                if movie_id is not None:
+                    # Watchlist button
+                    if is_in_watchlist(movie_id):
+                        st.button(
+                            "✓ In Watchlist",
+                            key=f"add_wl_personal_{movie_idx}_{movie_id}",
+                            disabled=True,
+                            use_container_width=True,
+                        )
+                    elif st.button(
+                        "➕ Add to Watchlist",
+                        key=f"add_wl_personal_{movie_idx}_{movie_id}",
+                        use_container_width=True,
+                    ):
+                        if add_to_watchlist(movie_id, rec["title"]):
+                            st.session_state.watchlist_flash = f"Added '{rec['title']}'"
+                            st.rerun()
+
+                    # Dismiss button
+                    if st.button(
+                        "🚫 Dismiss",
+                        key=f"dismiss_{movie_idx}_{movie_id}",
+                        use_container_width=True,
+                    ):
+                        set_movie_status(movie_id, rec["title"], "dismissed")
+                        st.rerun()
+
+                    # Feedback buttons
+                    fb_col1, fb_col2 = st.columns(2)
+                    with fb_col1:
+                        if st.button(
+                            "👍 Helpful",
+                            key=f"fb_up_personal_{movie_idx}_{movie_id}",
+                            use_container_width=True,
+                        ):
+                            save_feedback("For You", rec["title"], FEEDBACK_HELPFUL)
+                            st.session_state.feedback_given[f"for_you::{rec['title']}"] = "👍 Thanks — marked helpful"
+                            st.rerun()
+                    with fb_col2:
+                        if st.button(
+                            "👎 Not Helpful",
+                            key=f"fb_down_personal_{movie_idx}_{movie_id}",
+                            use_container_width=True,
+                        ):
+                            save_feedback("For You", rec["title"], FEEDBACK_NOT_HELPFUL)
+                            st.session_state.feedback_given[f"for_you::{rec['title']}"] = "👎 Thanks — we'll improve"
+                            st.rerun()
+
+
+def render_personal_discovery():
+    """Render the 'For You' personalized discovery page."""
+    ratings = get_ratings()
+    excluded_ids = get_excluded_movie_ids()
+
+    if len(ratings) < 15:
+        st.warning("Complete taste onboarding (15+ ratings) to see personalized recommendations.")
+        render_taste_onboarding()
+        return
+
+    with st.spinner("Finding movies you'll love..."):
+        recommendations = recommender.recommend_for_profile(
+            ratings=ratings,
+            excluded_movie_ids=excluded_ids,
+            top_n=20,
+        )
+
+    if not recommendations:
+        st.info("No recommendations available yet. Try rating more movies!")
+        return
+
+    render_personal_recommendations(recommendations)
+
 
 # --- UI Setup ---
 st.set_page_config(
@@ -765,11 +1032,13 @@ if "rec_source" not in st.session_state:
     st.session_state.feedback_given = {}
 if "watchlist_flash" not in st.session_state:
     st.session_state.watchlist_flash = None
+if "editing_rating" not in st.session_state:
+    st.session_state.editing_rating = None
 
 all_titles = get_sorted_titles(tuple(movies['title'].tolist()))
 valid_titles = set(all_titles)
 
-tab_recommender, tab_statistics = st.tabs(["🎬 Recommender", "📊 Statistics"])
+tab_recommender, tab_for_you, tab_statistics = st.tabs(["🎬 Recommender", "❤️ For You", "📊 Statistics"])
 
 selected_movie_name = None
 
@@ -830,6 +1099,9 @@ with tab_recommender:
             st.session_state.rec_names,
             st.session_state.rec_posters,
         )
+
+with tab_for_you:
+    render_personal_discovery()
 
 with tab_statistics:
     render_statistics_dashboard()
