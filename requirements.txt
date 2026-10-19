@@ -4,3 +4,5 @@ scikit-learn
 requests
 nltk
 python-dotenv
+fastapi
+uvicorn
