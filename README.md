@@ -86,6 +86,11 @@ python train.py
 ```bash
 streamlit run app.py
 ```
+OR
+
+```bash
+uvicorn server:app --reload --host 127.0.0.1 --port 8000
+```
 
 Use the sidebar **Admin Dashboard** page or the **Statistics** tab for analytics.
 
