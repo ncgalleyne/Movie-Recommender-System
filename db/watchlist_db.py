@@ -159,6 +159,15 @@ def get_rating(movie_id: int):
         ).fetchone()
     return dict(row) if row else None
 
+def delete_rating(movie_id: int) -> bool:
+    """Delete a movie's rating."""
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM personal_ratings WHERE movie_id = ?",
+            (movie_id,),
+        )
+        conn.commit()
+    return True
 
 def set_movie_status(movie_id: int, title: str, status: str) -> bool:
     """
