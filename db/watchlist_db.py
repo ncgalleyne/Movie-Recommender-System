@@ -184,6 +184,14 @@ def set_movie_status(movie_id: int, title: str, status: str) -> bool:
         conn.commit()
     return True
 
+def get_movie_status(movie_id: int):
+    """Return a single movie's status or None if not found."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT movie_id, title, status, updated_at FROM movie_status WHERE movie_id = ?",
+            (movie_id,),
+        ).fetchone()
+    return dict(row) if row else None
 
 def get_excluded_movie_ids():
     """Return list of movie_ids that should be excluded from recommendations (watched or dismissed)."""

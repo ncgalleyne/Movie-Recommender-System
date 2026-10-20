@@ -5,8 +5,8 @@ from ml.recommendation_model import MovieRecommender
 from ml.recommend_engine import enrich_movies_with_metadata, get_movie_details, fetch_poster
 from ml.search_engine import search_movies, find_exact_title
 from utils.recommender_util import format_similarity_score, sanitize_for_json
-from utils.search_util import get_sorted_titles
-from db.watchlist_db import get_ratings, get_excluded_movie_ids, is_in_watchlist
+from utils.search_util import get_sorted_titles, get_movie_by_id
+from db.watchlist_db import get_ratings, get_excluded_movie_ids, is_in_watchlist, get_movie_status, get_rating
 
 # Import or initialize your existing recommender,
 # movies DataFrame, and helper functions here.
@@ -147,7 +147,6 @@ def get_for_you_recommendations():
             "hiddenGem": False,  # Derive from your chosen criteria
             "score": rec.get("score", 0),
             "releaseDate": int(year) if year is not None else None,
-            "similarOnly": False,
         })
 
     return sanitize_for_json(results)
@@ -155,3 +154,21 @@ def get_for_you_recommendations():
 @app.get("/api/movies/suggestions")
 def get_movie_suggestions(q: str = Query(default="", max_length=200)):
     return search_movies(q, ALL_TITLES)
+
+@app.get("/api/movies/{movie_id}")
+def get_movie_details_by_id(movie_id: int):
+    movie = get_movie_by_id(movie_id, MOVIES)
+
+    poster = fetch_poster(movie_id, movie.get("title", ""))
+    my_rating = get_rating(movie_id) if movie_id is not None else None
+    watchlist = is_in_watchlist(movie_id) if movie_id is not None else False
+    movie_status = get_movie_status(movie_id) if movie_id is not None else None
+    genres = movie.pop("genres_display", None)
+    if genres:
+        movie["genres"] = genres.split(",")
+
+    movie["poster"] = poster
+    movie["myRating"] = my_rating
+    movie["watchlist"] = watchlist
+    movie["movieStatus"] = movie_status
+    return movie
