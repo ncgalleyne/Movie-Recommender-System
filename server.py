@@ -73,9 +73,20 @@ def recommend_movies(request: RecommendationRequest):
     for rec in recommendations:
         movie_row = MOVIES[MOVIES["title"] == rec["title"]].iloc[0]
         details = get_movie_details(movie_row)
-        details["similarity"] = format_similarity_score(rec["similarity_score"])
-        recommended_movies.append(details)
         movie_id = rec.get("movie_id") or details.get("movie_id")
+
+        watchlist = is_in_watchlist(movie_id) if movie_id is not None else False
+        movie_status = get_movie_status(movie_id) if movie_id is not None else None
+        tmdb_rating = details.pop("rating", None)
+        personal_rating = get_rating(movie_id) if movie_id is not None else None
+
+        details["similarity"] = format_similarity_score(rec["similarity_score"])
+        details["watchlist"] = watchlist
+        details["movieStatus"] = movie_status
+        details["tmdbRating"] = tmdb_rating.split("/")[0] if tmdb_rating else None
+        details["personalRating"] = personal_rating
+
+        recommended_movies.append(details)
         recommended_movies_posters.append(
             fetch_poster(movie_id, title=details["title"])
         )
