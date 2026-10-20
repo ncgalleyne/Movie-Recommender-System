@@ -6,7 +6,7 @@ from ml.recommend_engine import enrich_movies_with_metadata, get_movie_details, 
 from ml.search_engine import search_movies, find_exact_title
 from utils.recommender_util import format_similarity_score, sanitize_for_json
 from utils.search_util import get_sorted_titles, get_movie_by_id, get_movie_credits
-from db.watchlist_db import get_ratings, get_excluded_movie_ids, is_in_watchlist, get_movie_status, get_rating
+from db.watchlist_db import get_ratings, get_excluded_movie_ids, is_in_watchlist, get_movie_status, get_rating, add_to_watchlist, remove_from_watchlist
 from tmdb_client import TMDBClient, movie_record_from_api
 
 # Import or initialize your existing recommender,
@@ -181,3 +181,18 @@ def get_movie_details_by_id(movie_id: int):
     movie["director"] = credits["director"]
     movie["releaseDate"] = tmdb_movie.get("release_date", "")
     return movie
+
+@app.put("/api/movies/{movie_id}/watchlist")
+def update_movie_watchlist(movie_id: int, request: dict):
+    watchlist = request.get("watchlist")
+    movie = get_movie_by_id(movie_id, MOVIES)
+    if movie is None:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    
+    if watchlist:
+        add_to_watchlist(movie_id, movie["title"])
+    else:
+        remove_from_watchlist(movie_id)
+    return {"success": True}
+
+
