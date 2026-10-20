@@ -204,3 +204,16 @@ def get_excluded_movie_ids():
             """
         ).fetchall()
     return [row["movie_id"] for row in rows]
+
+def get_watched_movie_ids():
+    """Return list of movie_ids that have been watched."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT movie_id
+            FROM movie_status
+            WHERE status = 'watched'
+            """
+        ).fetchall()
+    return [row["movie_id"] for row in rows]
+

@@ -6,7 +6,7 @@ from ml.recommend_engine import enrich_movies_with_metadata, get_movie_details, 
 from ml.search_engine import search_movies, find_exact_title
 from utils.recommender_util import format_similarity_score, sanitize_for_json
 from utils.search_util import get_sorted_titles, get_movie_by_id, get_movie_credits
-from db.watchlist_db import get_ratings, get_excluded_movie_ids, is_in_watchlist, get_movie_status, set_movie_status, get_rating, add_to_watchlist, remove_from_watchlist
+from db.watchlist_db import get_ratings, get_excluded_movie_ids, is_in_watchlist, get_watched_movie_ids, get_movie_status, set_movie_status, get_rating, add_to_watchlist, remove_from_watchlist
 from db.feedback_db import save_feedback, get_most_liked_recommendations, get_feedback_summary as get_feedback_summary_db
 
 from tmdb_client import TMDBClient, movie_record_from_api
@@ -158,6 +158,22 @@ def get_for_you_recommendations():
 @app.get("/api/movies/suggestions")
 def get_movie_suggestions(q: str = Query(default="", max_length=200)):
     return search_movies(q, ALL_TITLES)
+
+@app.get("/api/movies/watched")
+def get_watched_movies():
+    watched_movie_ids = get_watched_movie_ids()
+    movies_with_posters = []
+    for movie_id in watched_movie_ids:
+        movie = get_movie_by_id(movie_id, MOVIES)
+        # Skip IDs that don't exist in the movie dataset
+        if not movie:
+            print(f"Movie not found in dataset: {movie_id}")
+            continue
+
+        poster = fetch_poster(movie_id, movie.get("title", ""))
+        movie["poster"] = poster
+        movies_with_posters.append(movie)
+    return movies_with_posters
 
 @app.get("/api/movies/{movie_id}")
 def get_movie_details_by_id(movie_id: int):
