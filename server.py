@@ -6,7 +6,7 @@ from ml.recommend_engine import enrich_movies_with_metadata, get_movie_details, 
 from ml.search_engine import search_movies, find_exact_title
 from utils.recommender_util import format_similarity_score, sanitize_for_json
 from utils.search_util import get_sorted_titles, get_movie_by_id, get_movie_credits
-from db.watchlist_db import get_ratings, save_rating, delete_rating, get_excluded_movie_ids, is_in_watchlist, get_watched_movie_ids, get_movie_status, set_movie_status, get_rating, add_to_watchlist, remove_from_watchlist
+from db.watchlist_db import get_watchlist, get_ratings, save_rating, delete_rating, get_excluded_movie_ids, is_in_watchlist, get_watched_movie_ids, get_movie_status, set_movie_status, get_rating, add_to_watchlist, remove_from_watchlist
 from db.feedback_db import save_feedback, get_most_liked_recommendations, get_feedback_summary as get_feedback_summary_db
 
 from tmdb_client import TMDBClient, movie_record_from_api
@@ -173,7 +173,23 @@ def get_watched_movies():
         poster = fetch_poster(movie_id, movie.get("title", ""))
         movie["poster"] = poster
         movies_with_posters.append(movie)
-    return movies_with_posters
+    return sanitize_for_json(movies_with_posters)
+
+@app.get("/api/movies/watchlist")
+def get_movie_watchlist():
+    watchlist_movies = get_watchlist()
+    movies_with_posters = []
+    for wm in watchlist_movies:
+        movie = get_movie_by_id(wm["movie_id"], MOVIES)
+        # Skip IDs that don't exist in the movie dataset
+        if not movie:
+            print(f"Movie not found in dataset: {wm['movie_id']}")
+            continue
+
+        poster = fetch_poster(wm["movie_id"], movie.get("title", ""))
+        movie["poster"] = poster
+        movies_with_posters.append(movie)
+    return sanitize_for_json(movies_with_posters)
 
 @app.get("/api/movies/{movie_id}")
 def get_movie_details_by_id(movie_id: int):
@@ -234,12 +250,12 @@ def set_movie_feedback(request: dict):
 @app.get("/api/feedback/most_liked")
 def get_most_liked_movies():
     movies = get_most_liked_recommendations()
-    return movies
+    return sanitize_for_json(movies)
 
 @app.get("/api/feedback/summary")
 def get_feedback_summary():
     summary = get_feedback_summary_db()
-    return summary
+    return sanitize_for_json(summary)
 
 ### End Feedback routes ###
 
