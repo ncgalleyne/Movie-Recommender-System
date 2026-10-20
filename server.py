@@ -7,6 +7,8 @@ from ml.search_engine import search_movies, find_exact_title
 from utils.recommender_util import format_similarity_score, sanitize_for_json
 from utils.search_util import get_sorted_titles, get_movie_by_id, get_movie_credits
 from db.watchlist_db import get_ratings, get_excluded_movie_ids, is_in_watchlist, get_movie_status, get_rating, add_to_watchlist, remove_from_watchlist
+from db.feedback_db import save_feedback, get_most_liked_recommendations, get_feedback_summary as get_feedback_summary_db
+
 from tmdb_client import TMDBClient, movie_record_from_api
 
 # Import or initialize your existing recommender,
@@ -182,6 +184,10 @@ def get_movie_details_by_id(movie_id: int):
     movie["releaseDate"] = tmdb_movie.get("release_date", "")
     return movie
 
+# endpoint to add or remove a movie from watchlist
+# takes in watchlist boolean
+# when true, adds the movie to the watchlist
+# when false, removes the movie from the watchlist
 @app.put("/api/movies/{movie_id}/watchlist")
 def update_movie_watchlist(movie_id: int, request: dict):
     watchlist = request.get("watchlist")
@@ -195,4 +201,28 @@ def update_movie_watchlist(movie_id: int, request: dict):
         remove_from_watchlist(movie_id)
     return {"success": True}
 
+### Feedback routes ###
 
+@app.post("/api/feedback")
+def set_movie_feedback(request: dict):
+    feedback = request.get("feedback") # boolean: true for good recommendation, false for bad recommendation
+    selected_movie = request.get("selectedMovie") # movie title as string
+    recommended_movie = request.get("recommendedMovie") # movie title as string
+    
+    if feedback:
+        save_feedback(selected_movie, recommended_movie, "helpful")
+    else:
+        save_feedback(selected_movie, recommended_movie, "not_helpful")
+    return {"success": True}
+
+@app.get("/api/feedback/most_liked")
+def get_most_liked_movies():
+    movies = get_most_liked_recommendations()
+    return movies
+
+@app.get("/api/feedback/summary")
+def get_feedback_summary():
+    summary = get_feedback_summary_db()
+    return summary
+
+### End Feedback routes ###

@@ -54,7 +54,6 @@ def save_feedback(selected_movie: str, recommended_movie: str, feedback_type: st
         )
         conn.commit()
 
-
 def get_most_liked_recommendations(limit=10):
     """Return recommended movies with the most helpful feedback."""
     with get_connection() as conn:
@@ -70,7 +69,6 @@ def get_most_liked_recommendations(limit=10):
             (FEEDBACK_HELPFUL, limit),
         ).fetchall()
     return [dict(row) for row in rows]
-
 
 def get_feedback_summary():
     with get_connection() as conn:

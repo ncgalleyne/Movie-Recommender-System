@@ -84,6 +84,11 @@ python train.py
 ### 4. Run the app
 
 ```bash
+source myenv/Scripts/activate
+```
+AND
+
+```bash
 streamlit run app.py
 ```
 OR
