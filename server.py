@@ -5,8 +5,9 @@ from ml.recommendation_model import MovieRecommender
 from ml.recommend_engine import enrich_movies_with_metadata, get_movie_details, fetch_poster
 from ml.search_engine import search_movies, find_exact_title
 from utils.recommender_util import format_similarity_score, sanitize_for_json
-from utils.search_util import get_sorted_titles, get_movie_by_id
+from utils.search_util import get_sorted_titles, get_movie_by_id, get_movie_credits
 from db.watchlist_db import get_ratings, get_excluded_movie_ids, is_in_watchlist, get_movie_status, get_rating
+from tmdb_client import TMDBClient, movie_record_from_api
 
 # Import or initialize your existing recommender,
 # movies DataFrame, and helper functions here.
@@ -38,6 +39,7 @@ try:
     RECOMMENDER = MovieRecommender.load()
     MOVIES = RECOMMENDER.movies
     MOVIES = enrich_movies_with_metadata(MOVIES)
+    TMDB_CLIENT = TMDBClient()
 
     ALL_TITLES = get_sorted_titles(tuple(MOVIES['title'].tolist()))
     VALID_TITLES = set(ALL_TITLES)
@@ -158,6 +160,9 @@ def get_movie_suggestions(q: str = Query(default="", max_length=200)):
 @app.get("/api/movies/{movie_id}")
 def get_movie_details_by_id(movie_id: int):
     movie = get_movie_by_id(movie_id, MOVIES)
+    tmdb_movie = movie_record_from_api(TMDB_CLIENT, movie_id)
+
+    credits = get_movie_credits(tmdb_movie)
 
     poster = fetch_poster(movie_id, movie.get("title", ""))
     my_rating = get_rating(movie_id) if movie_id is not None else None
@@ -171,4 +176,8 @@ def get_movie_details_by_id(movie_id: int):
     movie["myRating"] = my_rating
     movie["watchlist"] = watchlist
     movie["movieStatus"] = movie_status
+    movie["overview"] = tmdb_movie.get("overview", "")
+    movie["cast"] = credits["cast"]
+    movie["director"] = credits["director"]
+    movie["releaseDate"] = tmdb_movie.get("release_date", "")
     return movie
