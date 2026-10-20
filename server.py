@@ -6,7 +6,7 @@ from ml.recommend_engine import enrich_movies_with_metadata, get_movie_details, 
 from ml.search_engine import search_movies, find_exact_title
 from utils.recommender_util import format_similarity_score, sanitize_for_json
 from utils.search_util import get_sorted_titles, get_movie_by_id, get_movie_credits
-from db.watchlist_db import get_ratings, get_excluded_movie_ids, is_in_watchlist, get_movie_status, get_rating, add_to_watchlist, remove_from_watchlist
+from db.watchlist_db import get_ratings, get_excluded_movie_ids, is_in_watchlist, get_movie_status, set_movie_status, get_rating, add_to_watchlist, remove_from_watchlist
 from db.feedback_db import save_feedback, get_most_liked_recommendations, get_feedback_summary as get_feedback_summary_db
 
 from tmdb_client import TMDBClient, movie_record_from_api
@@ -226,3 +226,24 @@ def get_feedback_summary():
     return summary
 
 ### End Feedback routes ###
+
+### Movie Status routes ###
+
+@app.get("/api/{movie_id}/status")
+def get_movie_status_endpoint(movie_id: int):
+    movie_status = get_movie_status(movie_id)
+    return movie_status
+
+@app.put("/api/{movie_id}/status")
+def update_movie_status_endpoint(movie_id: int, request: dict):
+    status = request.get("status") # string: "unseen", "watched", "dismissed", "want_to_watch"
+    movie = get_movie_by_id(movie_id, MOVIES)
+
+    if movie is None:
+        raise HTTPException(status_code=404, detail="Movie not found")
+
+    set_movie_status(movie_id, movie["title"], status)
+    return {"success": True}
+
+### End Movie Status routes ###
+
