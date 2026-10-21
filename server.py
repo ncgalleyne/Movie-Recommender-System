@@ -202,6 +202,61 @@ def get_movie_watchlist():
         movies_with_posters.append(movie)
     return sanitize_for_json(movies_with_posters)
 
+@app.get("/api/movies/rated")
+def get_all_rated_movies():
+    ratings = get_ratings()
+    movies_with_posters = []
+    for rating in ratings:
+        movie = get_movie_by_id(rating["movie_id"], MOVIES)
+        # Skip IDs that don't exist in the movie dataset
+        if not movie:
+            print(f"Movie not found in dataset: {rating['movie_id']}")
+            continue
+        tmdb_movie = movie_record_from_api(TMDB_CLIENT, rating["movie_id"])
+        credits = get_movie_credits(tmdb_movie)
+        movie_status = get_movie_status(rating["movie_id"]) if rating["movie_id"] else None
+
+        poster = fetch_poster(rating["movie_id"], movie.get("title", ""))
+        genres = movie.pop("genres_display", None)
+        if genres:
+            movie["genres"] = genres.split(",")
+        
+        movie["poster"] = poster
+        movie["tmdbRating"] = tmdb_movie.get("vote_average", 0)
+        movie["personalRating"] = rating["rating"]
+        movie["director"] = credits["director"]
+        movie["status"] = movie_status
+        movies_with_posters.append(movie)
+    return sanitize_for_json(movies_with_posters)
+
+@app.get("/api/movies/dismissed")
+def get_all_dismissed_movies():
+    dismissed_movie_ids = get_dismissed_movie_ids()
+    movies_with_posters = []
+    for movie_id in dismissed_movie_ids:
+        movie = get_movie_by_id(movie_id, MOVIES)
+        # Skip IDs that don't exist in the movie dataset
+        if not movie:
+            print(f"Movie not found in dataset: {movie_id}")
+            continue
+
+        tmdb_movie = movie_record_from_api(TMDB_CLIENT, movie_id)
+        credits = get_movie_credits(tmdb_movie)
+        movie_status = get_movie_status(movie_id)
+
+        poster = fetch_poster(movie_id, movie.get("title", ""))
+        genres = movie.pop("genres_display", None)
+        if genres:
+            movie["genres"] = genres.split(",")
+        
+        movie["poster"] = poster
+        movie["tmdbRating"] = tmdb_movie.get("vote_average", 0)
+        movie["personalRating"] = None
+        movie["director"] = credits["director"]
+        movie["status"] = movie_status
+        movies_with_posters.append(movie)
+    return sanitize_for_json(movies_with_posters)
+
 @app.get("/api/movies/{movie_id}")
 def get_movie_details_by_id(movie_id: int):
     movie = get_movie_by_id(movie_id, MOVIES)
